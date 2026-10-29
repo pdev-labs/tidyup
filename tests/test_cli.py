@@ -57,3 +57,25 @@ def test_recursive_flag_reaches_nested_files(tmp_path, capsys):
     assert main([str(tmp_path), "-r"]) == 0
 
     assert (tmp_path / "Images" / "deep.jpg").exists()
+
+
+def test_by_date_groups_into_year_and_month(tmp_path, capsys):
+    import os
+    from datetime import datetime
+
+    photo = tmp_path / "photo.jpg"
+    photo.write_text("x", encoding="utf-8")
+    stamp = datetime(2022, 7, 1, 9, 0).timestamp()
+    os.utime(photo, (stamp, stamp))
+
+    assert main([str(tmp_path), "--by", "date"]) == 0
+
+    assert "photo.jpg -> 2022/07/photo.jpg" in capsys.readouterr().out
+    assert (tmp_path / "2022" / "07" / "photo.jpg").exists()
+
+
+def test_invalid_grouping_mode_is_rejected_by_the_parser(tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        main([str(tmp_path), "--by", "size"])
+
+    assert exc.value.code == 2

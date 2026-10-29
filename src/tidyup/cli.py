@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
-from .organizer import apply_moves, plan_sort
+from .organizer import CATEGORY, DATE, apply_moves, plan_sort
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -44,6 +44,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="also sort files inside subdirectories",
     )
     parser.add_argument(
+        "-b",
+        "--by",
+        choices=(CATEGORY, DATE),
+        default=CATEGORY,
+        help="group by file type (default) or by modification date",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
@@ -51,16 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _describe(move) -> str:
-    return f"  {move.source.name} -> {move.destination.parent.name}/{move.destination.name}"
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
     args = build_parser().parse_args(argv)
 
     try:
-        moves = plan_sort(args.directory, recursive=args.recursive)
+        moves = plan_sort(args.directory, recursive=args.recursive, by=args.by)
     except NotADirectoryError as exc:
         print(f"tidyup: {exc}", file=sys.stderr)
         return 2
@@ -72,7 +75,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     verb = "Would move" if args.dry_run else "Moved"
     print(f"{verb} {len(moves)} file(s) in {args.directory.resolve()}")
     for move in moves:
-        print(_describe(move))
+        print(f"  {move}")
 
     if not args.dry_run:
         apply_moves(moves)

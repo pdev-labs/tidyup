@@ -22,6 +22,17 @@ $ pip install -e ".[dev]"
 
 ```console
 $ tidyup ~/Downloads --dry-run
+Would move 3 file(s) in /home/you/Downloads
+  invoice.pdf -> Documents/invoice.pdf
+  shot.png -> Images/shot.png
+  call.mp3 -> Audio/call.mp3
+```
+
+Then drop `--dry-run` to do it for real.
+
+```console
+$ tidyup ~/Downloads --by date      # 2026/10/ instead of category folders
+$ tidyup ~/Downloads -r             # include subfolders
 ```
 
 ## Safety model

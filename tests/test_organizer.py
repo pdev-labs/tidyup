@@ -1,7 +1,9 @@
 from pathlib import Path
 
+import pytest
+
 from tidyup.categories import CATEGORIES, all_categories, category_for
-from tidyup.organizer import Move, apply_moves, plan_sort
+from tidyup.organizer import DATE, Move, apply_moves, plan_sort
 
 
 def touch(directory: Path, *names: str) -> None:
@@ -101,12 +103,44 @@ def test_apply_moves_creates_folders_and_moves_files(tmp_path):
 
 
 def test_plan_on_missing_directory_raises(tmp_path):
-    import pytest
-
     with pytest.raises(NotADirectoryError):
         plan_sort(tmp_path / "nope")
 
 
 def test_move_str_is_readable(tmp_path):
-    move = Move(source=tmp_path / "a.jpg", destination=tmp_path / "Images" / "a.jpg")
+    move = Move(
+        source=tmp_path / "a.jpg",
+        destination=tmp_path / "Images" / "a.jpg",
+        root=tmp_path,
+    )
     assert "a.jpg -> Images/a.jpg" == str(move)
+
+
+def test_unknown_grouping_mode_raises(tmp_path):
+    with pytest.raises(ValueError):
+        plan_sort(tmp_path, by="size")
+
+
+def test_date_mode_groups_by_year_and_month(tmp_path):
+    import os
+    from datetime import datetime
+
+    photo = tmp_path / "photo.jpg"
+    photo.write_text("x", encoding="utf-8")
+    stamp = datetime(2021, 3, 15, 12, 0).timestamp()
+    os.utime(photo, (stamp, stamp))
+
+    moves = plan_sort(tmp_path, by=DATE)
+
+    assert moves[0].destination == tmp_path / "2021" / "03" / "photo.jpg"
+
+
+def test_date_mode_recursive_does_not_resort_existing_structure(tmp_path):
+    nested = tmp_path / "2021" / "03"
+    nested.mkdir(parents=True)
+    (nested / "old.jpg").write_text("x", encoding="utf-8")
+    (tmp_path / "new.jpg").write_text("x", encoding="utf-8")
+
+    moves = plan_sort(tmp_path, recursive=True, by=DATE)
+
+    assert [m.source.name for m in moves] == ["new.jpg"]

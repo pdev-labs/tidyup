@@ -11,22 +11,27 @@ from __future__ import annotations
 import shutil
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from .categories import FALLBACK, all_categories, category_for
+
+CATEGORY = "category"
+DATE = "date"
 
 _CATEGORY_DIR_NAMES = frozenset(all_categories())
 
 
 @dataclass(frozen=True)
 class Move:
-    """A single file relocation."""
+    """A single file relocation, relative to the folder being tidied."""
 
     source: Path
     destination: Path
+    root: Path
 
     def __str__(self) -> str:
-        return f"{self.source.name} -> {self.destination.relative_to(self.destination.parents[1])}"
+        return f"{self.source.name} -> {self.destination.relative_to(self.root)}"
 
 
 def _is_ignored(path: Path) -> bool:
@@ -52,50 +57,77 @@ def _unique_destination(destination: Path, planned: set[Path]) -> Path:
         counter += 1
 
 
-def _iter_candidates(root: Path, recursive: bool) -> Iterable[Path]:
+def _destination_dir(path: Path, root: Path, by: str) -> Path:
+    if by == DATE:
+        stamp = datetime.fromtimestamp(path.stat().st_mtime)
+        return root / f"{stamp:%Y}" / f"{stamp:%m}"
+    return root / category_for(path)
+
+
+def _already_sorted(path: Path, root: Path, by: str) -> bool:
+    """True when the file already lives in a folder this tool would pick."""
+    parent = path.parent
+    if parent == root:
+        return False
+    if by == DATE:
+        return (
+            parent.name.isdigit()
+            and len(parent.name) == 2
+            and parent.parent.name.isdigit()
+            and len(parent.parent.name) == 4
+        )
+    return parent.name in _CATEGORY_DIR_NAMES
+
+
+def _iter_candidates(root: Path, recursive: bool, by: str) -> Iterable[Path]:
     entries = root.rglob("*") if recursive else root.iterdir()
     for entry in entries:
         if not entry.is_file() or entry.is_symlink() or _is_ignored(entry):
             continue
-        # A recursive run must not re-sort files that already sit in a
-        # category folder, otherwise a second run would chase its own tail.
-        if recursive and entry.parent.name in _CATEGORY_DIR_NAMES:
+        # A recursive run must not re-sort files that already sit where this
+        # tool would put them, otherwise a second run would chase its own tail.
+        if recursive and _already_sorted(entry, root, by):
             continue
         yield entry
 
 
-def plan_sort(root: Path, *, recursive: bool = False) -> list[Move]:
+def plan_sort(root: Path, *, recursive: bool = False, by: str = CATEGORY) -> list[Move]:
     """Return the moves needed to tidy ``root``, without touching anything.
 
-    Files are grouped by :func:`~tidyup.categories.category_for` into
-    ``root/<Category>/<name>``. Existing files are never overwritten: a clash
-    produces ``name (1).ext`` instead.
+    With ``by="category"`` files go to ``root/<Category>/<name>``. With
+    ``by="date"`` they go to ``root/<YYYY>/<MM>/<name>`` using modification
+    time. Existing files are never overwritten: a clash produces
+    ``name (1).ext`` instead.
 
     Raises:
         NotADirectoryError: if ``root`` is not an existing directory.
+        ValueError: if ``by`` is not a known grouping mode.
     """
+    if by not in (CATEGORY, DATE):
+        raise ValueError(f"unknown grouping mode: {by!r}")
     if not root.is_dir():
         raise NotADirectoryError(f"not a directory: {root}")
 
     moves: list[Move] = []
     planned: set[Path] = set()
 
-    for path in sorted(_iter_candidates(root, recursive), key=lambda p: p.name.lower()):
-        category = category_for(path)
-        destination = _unique_destination(root / category / path.name, planned)
+    for path in sorted(_iter_candidates(root, recursive, by), key=lambda p: p.name.lower()):
+        destination = _unique_destination(
+            _destination_dir(path, root, by) / path.name, planned
+        )
         planned.add(destination)
         if destination == path:
             continue
-        moves.append(Move(source=path, destination=destination))
+        moves.append(Move(source=path, destination=destination, root=root))
 
     return moves
 
 
 def apply_moves(moves: Sequence[Move]) -> None:
-    """Perform ``moves`` on disk, creating category folders as needed."""
+    """Perform ``moves`` on disk, creating target folders as needed."""
     for move in moves:
         move.destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(move.source), str(move.destination))
 
 
-__all__ = ["Move", "apply_moves", "plan_sort", "FALLBACK"]
+__all__ = ["CATEGORY", "DATE", "Move", "apply_moves", "plan_sort", "FALLBACK"]
