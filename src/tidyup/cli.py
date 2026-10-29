@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from . import __version__, journal
 from .organizer import CATEGORY, DATE, Move, TidyupError, apply_moves, plan_sort
@@ -58,6 +60,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="skip files matching GLOB, relative to the folder (repeatable)",
     )
     parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="print the plan or the restore as JSON",
+    )
+    parser.add_argument(
         "--undo",
         action="store_true",
         help="reverse the most recent run in the folder",
@@ -70,8 +78,27 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _print_moves(verb: str, moves: Sequence[Move], root: Path) -> None:
-    print(f"{verb} {len(moves)} file(s) in {root.resolve()}")
+def _relative(path: Path, root: Path) -> str:
+    return path.relative_to(root).as_posix()
+
+
+def _payload(args: argparse.Namespace, moves: Sequence[Move]) -> dict[str, Any]:
+    return {
+        "root": str(args.directory.resolve()),
+        "dry_run": bool(args.dry_run),
+        "count": len(moves),
+        "moves": [
+            {"source": _relative(m.source, m.root), "destination": _relative(m.destination, m.root)}
+            for m in moves
+        ],
+    }
+
+
+def _report(args: argparse.Namespace, verb: str, moves: Sequence[Move]) -> None:
+    if args.as_json:
+        print(json.dumps(_payload(args, moves), indent=2))
+        return
+    print(f"{verb} {len(moves)} file(s) in {args.directory.resolve()}")
     for move in moves:
         print(f"  {move}")
 
@@ -83,7 +110,7 @@ def _run_undo(args: argparse.Namespace) -> int:
         print(f"tidyup: {exc}", file=sys.stderr)
         return 1
 
-    _print_moves("Would restore" if args.dry_run else "Restored", moves, args.directory)
+    _report(args, "Would restore" if args.dry_run else "Restored", moves)
     if not args.dry_run:
         journal.undo(args.directory)
     return 0
@@ -108,10 +135,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     if not moves:
-        print("Nothing to tidy - the folder is already sorted.")
+        if args.as_json:
+            print(json.dumps(_payload(args, []), indent=2))
+        else:
+            print("Nothing to tidy - the folder is already sorted.")
         return 0
 
-    _print_moves("Would move" if args.dry_run else "Moved", moves, args.directory)
+    _report(args, "Would move" if args.dry_run else "Moved", moves)
 
     if not args.dry_run:
         journal.save(args.directory, moves)
