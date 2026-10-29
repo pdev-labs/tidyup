@@ -79,3 +79,45 @@ def test_invalid_grouping_mode_is_rejected_by_the_parser(tmp_path):
         main([str(tmp_path), "--by", "size"])
 
     assert exc.value.code == 2
+
+
+def test_dry_run_writes_no_journal(tmp_path):
+    touch(tmp_path, "a.jpg")
+
+    main([str(tmp_path), "--dry-run"])
+
+    assert not (tmp_path / ".tidyup").exists()
+
+
+def test_real_run_writes_a_journal(tmp_path):
+    touch(tmp_path, "a.jpg")
+
+    main([str(tmp_path)])
+
+    assert list((tmp_path / ".tidyup" / "journal").glob("*.json"))
+
+
+def test_undo_restores_the_last_run(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+    main([str(tmp_path)])
+
+    assert main([str(tmp_path), "--undo"]) == 0
+
+    assert "Restored 1 file(s)" in capsys.readouterr().out
+    assert (tmp_path / "a.jpg").exists()
+    assert not (tmp_path / "Images").exists()
+
+
+def test_undo_dry_run_leaves_everything_in_place(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+    main([str(tmp_path)])
+
+    assert main([str(tmp_path), "--undo", "--dry-run"]) == 0
+
+    assert "Would restore 1 file(s)" in capsys.readouterr().out
+    assert (tmp_path / "Images" / "a.jpg").exists()
+
+
+def test_undo_without_a_journal_exits_one(tmp_path, capsys):
+    assert main([str(tmp_path), "--undo"]) == 1
+    assert "no tidyup journal" in capsys.readouterr().err
