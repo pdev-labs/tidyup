@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from tidyup.categories import CATEGORIES, all_categories, category_for
-from tidyup.organizer import DATE, Move, apply_moves, plan_sort
+from tidyup.organizer import DATE, Move, TidyupError, apply_moves, plan_sort
 
 
 def touch(directory: Path, *names: str) -> None:
@@ -144,3 +144,25 @@ def test_date_mode_recursive_does_not_resort_existing_structure(tmp_path):
     moves = plan_sort(tmp_path, recursive=True, by=DATE)
 
     assert [m.source.name for m in moves] == ["new.jpg"]
+
+
+def test_target_folder_taken_by_a_file_is_reported(tmp_path):
+    (tmp_path / "a.jpg").write_text("x", encoding="utf-8")
+    (tmp_path / "Images").write_text("not a folder", encoding="utf-8")
+
+    with pytest.raises(TidyupError) as exc:
+        plan_sort(tmp_path)
+
+    assert "Images" in str(exc.value)
+
+
+def test_target_folder_conflict_is_detected_before_anything_moves(tmp_path):
+    (tmp_path / "a.jpg").write_text("x", encoding="utf-8")
+    (tmp_path / "b.pdf").write_text("x", encoding="utf-8")
+    (tmp_path / "Images").write_text("not a folder", encoding="utf-8")
+
+    with pytest.raises(TidyupError):
+        plan_sort(tmp_path)
+
+    assert (tmp_path / "a.jpg").exists()
+    assert (tmp_path / "b.pdf").exists()

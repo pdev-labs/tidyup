@@ -25,6 +25,10 @@ STATE_DIRNAME = ".tidyup"
 _CATEGORY_DIR_NAMES = frozenset(all_categories())
 
 
+class TidyupError(Exception):
+    """A problem tidyup can explain to the user, rather than a crash."""
+
+
 @dataclass(frozen=True)
 class Move:
     """A single file relocation, relative to the folder being tidied."""
@@ -67,6 +71,14 @@ def _destination_dir(path: Path, root: Path, by: str) -> Path:
     return root / category_for(path)
 
 
+def _check_target_dir(directory: Path) -> None:
+    """Fail early and clearly when a target folder name is taken by a file."""
+    if directory.exists() and not directory.is_dir():
+        raise TidyupError(
+            f"cannot use {directory.name!r} as a folder: a file with that name already exists"
+        )
+
+
 def _already_sorted(path: Path, root: Path, by: str) -> bool:
     """True when the file already lives in a folder this tool would pick."""
     parent = path.parent
@@ -106,6 +118,7 @@ def plan_sort(root: Path, *, recursive: bool = False, by: str = CATEGORY) -> lis
 
     Raises:
         NotADirectoryError: if ``root`` is not an existing directory.
+        TidyupError: if a target folder name is taken by an existing file.
         ValueError: if ``by`` is not a known grouping mode.
     """
     if by not in (CATEGORY, DATE):
@@ -117,7 +130,9 @@ def plan_sort(root: Path, *, recursive: bool = False, by: str = CATEGORY) -> lis
     planned: set[Path] = set()
 
     for path in sorted(_iter_candidates(root, recursive, by), key=lambda p: p.name.lower()):
-        destination = _unique_destination(_destination_dir(path, root, by) / path.name, planned)
+        target_dir = _destination_dir(path, root, by)
+        _check_target_dir(target_dir)
+        destination = _unique_destination(target_dir / path.name, planned)
         planned.add(destination)
         if destination == path:
             continue
@@ -133,4 +148,12 @@ def apply_moves(moves: Sequence[Move]) -> None:
         shutil.move(str(move.source), str(move.destination))
 
 
-__all__ = ["CATEGORY", "DATE", "Move", "apply_moves", "plan_sort", "FALLBACK"]
+__all__ = [
+    "CATEGORY",
+    "DATE",
+    "Move",
+    "TidyupError",
+    "apply_moves",
+    "plan_sort",
+    "FALLBACK",
+]

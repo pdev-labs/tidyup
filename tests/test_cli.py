@@ -121,3 +121,15 @@ def test_undo_dry_run_leaves_everything_in_place(tmp_path, capsys):
 def test_undo_without_a_journal_exits_one(tmp_path, capsys):
     assert main([str(tmp_path), "--undo"]) == 1
     assert "no tidyup journal" in capsys.readouterr().err
+
+
+def test_folder_name_taken_by_a_file_is_a_clean_error(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+    (tmp_path / "Images").write_text("not a folder", encoding="utf-8")
+
+    assert main([str(tmp_path)]) == 2
+
+    err = capsys.readouterr().err
+    assert "Images" in err
+    assert "Traceback" not in err
+    assert (tmp_path / "a.jpg").exists()
