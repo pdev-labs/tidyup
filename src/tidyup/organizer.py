@@ -8,6 +8,7 @@ same plan that a real run would execute.
 
 from __future__ import annotations
 
+import fnmatch
 import shutil
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -94,12 +95,32 @@ def _already_sorted(path: Path, root: Path, by: str) -> bool:
     return parent.name in _CATEGORY_DIR_NAMES
 
 
-def _iter_candidates(root: Path, recursive: bool, by: str) -> Iterable[Path]:
+def _excluded(path: Path, root: Path, patterns: Sequence[str]) -> bool:
+    """True when ``path`` matches any exclude pattern.
+
+    Patterns are shell globs matched against the path relative to the folder
+    being tidied (``node_modules/*``) and against the bare file name
+    (``*.log``). Excluding a directory means passing ``dir/*``.
+    """
+    if not patterns:
+        return False
+    relative = path.relative_to(root).as_posix()
+    return any(
+        fnmatch.fnmatchcase(relative, pattern) or fnmatch.fnmatchcase(path.name, pattern)
+        for pattern in patterns
+    )
+
+
+def _iter_candidates(
+    root: Path, recursive: bool, by: str, exclude: Sequence[str]
+) -> Iterable[Path]:
     entries = root.rglob("*") if recursive else root.iterdir()
     for entry in entries:
         if not entry.is_file() or entry.is_symlink() or _is_ignored(entry):
             continue
         if STATE_DIRNAME in entry.relative_to(root).parts[:-1]:
+            continue
+        if _excluded(entry, root, exclude):
             continue
         # A recursive run must not re-sort files that already sit where this
         # tool would put them, otherwise a second run would chase its own tail.
@@ -108,13 +129,22 @@ def _iter_candidates(root: Path, recursive: bool, by: str) -> Iterable[Path]:
         yield entry
 
 
-def plan_sort(root: Path, *, recursive: bool = False, by: str = CATEGORY) -> list[Move]:
+def plan_sort(
+    root: Path,
+    *,
+    recursive: bool = False,
+    by: str = CATEGORY,
+    exclude: Sequence[str] = (),
+) -> list[Move]:
     """Return the moves needed to tidy ``root``, without touching anything.
 
     With ``by="category"`` files go to ``root/<Category>/<name>``. With
     ``by="date"`` they go to ``root/<YYYY>/<MM>/<name>`` using modification
     time. Existing files are never overwritten: a clash produces
     ``name (1).ext`` instead.
+
+    ``exclude`` holds shell globs matched against the path relative to
+    ``root`` and against the bare file name; matching files are left in place.
 
     Raises:
         NotADirectoryError: if ``root`` is not an existing directory.
@@ -129,7 +159,9 @@ def plan_sort(root: Path, *, recursive: bool = False, by: str = CATEGORY) -> lis
     moves: list[Move] = []
     planned: set[Path] = set()
 
-    for path in sorted(_iter_candidates(root, recursive, by), key=lambda p: p.name.lower()):
+    for path in sorted(
+        _iter_candidates(root, recursive, by, exclude), key=lambda p: p.name.lower()
+    ):
         target_dir = _destination_dir(path, root, by)
         _check_target_dir(target_dir)
         destination = _unique_destination(target_dir / path.name, planned)

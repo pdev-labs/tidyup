@@ -133,3 +133,14 @@ def test_folder_name_taken_by_a_file_is_a_clean_error(tmp_path, capsys):
     assert "Images" in err
     assert "Traceback" not in err
     assert (tmp_path / "a.jpg").exists()
+
+
+def test_exclude_flag_is_repeatable(tmp_path, capsys):
+    touch(tmp_path, "a.jpg", "b.log", "c.bak")
+
+    assert main([str(tmp_path), "-x", "*.log", "-x", "*.bak"]) == 0
+
+    assert "Moved 1 file(s)" in capsys.readouterr().out
+    assert (tmp_path / "Images" / "a.jpg").exists()
+    assert (tmp_path / "b.log").exists()
+    assert (tmp_path / "c.bak").exists()
