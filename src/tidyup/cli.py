@@ -77,6 +77,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="reverse the most recent run in the folder",
     )
     parser.add_argument(
+        "--undo-id",
+        metavar="ID",
+        help="reverse a specific recorded run (unique id prefix)",
+    )
+    parser.add_argument(
+        "--history",
+        action="store_true",
+        help="list recorded runs in the folder",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
@@ -160,14 +170,44 @@ def _run_duplicates(args: argparse.Namespace) -> int:
 
 def _run_undo(args: argparse.Namespace) -> int:
     try:
-        moves = journal.plan_undo(args.directory)
+        moves = journal.plan_undo(args.directory, args.undo_id)
     except FileNotFoundError as exc:
         print(f"tidyup: {exc}", file=sys.stderr)
         return 1
+    except ValueError as exc:
+        print(f"tidyup: {exc}", file=sys.stderr)
+        return 2
 
     _report(args, "Would restore" if args.dry_run else "Restored", moves)
     if not args.dry_run:
-        journal.undo(args.directory)
+        journal.undo(args.directory, args.undo_id)
+    return 0
+
+
+def _run_history(args: argparse.Namespace) -> int:
+    recorded = list(reversed(journal.runs(args.directory)))
+
+    if args.as_json:
+        print(
+            json.dumps(
+                {
+                    "root": str(args.directory.resolve()),
+                    "runs": [
+                        {"id": run.id, "created": run.created, "moves": run.move_count}
+                        for run in recorded
+                    ],
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    if not recorded:
+        print("No recorded runs in this folder.")
+        return 0
+
+    for run in recorded:
+        print(f"{run.id}  {run.created}  {run.move_count} file(s)")
     return 0
 
 
@@ -175,8 +215,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
     args = build_parser().parse_args(argv)
 
+    if args.history:
+        return _run_history(args)
+
     if args.duplicates:
         return _run_duplicates(args)
+
+    if args.undo_id:
+        args.undo = True
 
     if args.undo:
         return _run_undo(args)

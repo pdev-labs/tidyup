@@ -67,6 +67,16 @@ empty, and it renames instead of overwriting if a file with the old name has
 reappeared in the meantime. Journals store relative paths, so moving the folder
 does not break them.
 
+Runs are kept, not overwritten, so you can go further back:
+
+```console
+$ tidyup ~/Downloads --history
+20261029T151113084211Z  2026-10-29T15:11:13+00:00  12 file(s)
+20261029T150204771930Z  2026-10-29T15:02:04+00:00  3 file(s)
+
+$ tidyup ~/Downloads --undo-id 20261029T150204
+```
+
 ## Safety model
 
 - `--dry-run` is the default path in the docs and shows the exact plan first.

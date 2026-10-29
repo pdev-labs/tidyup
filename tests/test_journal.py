@@ -111,3 +111,61 @@ def test_unsupported_journal_format_is_rejected(tmp_path):
 
 def test_move_type_is_importable_for_journal_users():
     assert Move.__name__ == "Move"
+
+
+def test_runs_lists_recorded_runs_oldest_first(tmp_path):
+    touch(tmp_path, "a.jpg")
+    first = journal.save(tmp_path, plan_sort(tmp_path))
+    touch(tmp_path, "b.pdf")
+    second = journal.save(tmp_path, plan_sort(tmp_path))
+
+    recorded = journal.runs(tmp_path)
+
+    assert [run.id for run in recorded] == [first.stem, second.stem]
+    assert recorded[0].move_count == 1
+    assert recorded[0].created
+
+
+def test_runs_is_empty_without_a_journal(tmp_path):
+    assert journal.runs(tmp_path) == []
+
+
+def test_resolve_returns_the_latest_by_default(tmp_path):
+    touch(tmp_path, "a.jpg")
+    first = journal.save(tmp_path, plan_sort(tmp_path))
+    touch(tmp_path, "b.pdf")
+    second = journal.save(tmp_path, plan_sort(tmp_path))
+
+    assert journal.resolve(tmp_path) == second
+    assert journal.resolve(tmp_path, first.stem) == first
+
+
+def test_resolve_rejects_an_ambiguous_prefix(tmp_path):
+    touch(tmp_path, "a.jpg")
+    journal.save(tmp_path, plan_sort(tmp_path))
+    touch(tmp_path, "b.pdf")
+    journal.save(tmp_path, plan_sort(tmp_path))
+
+    with pytest.raises(ValueError, match="be more specific"):
+        journal.resolve(tmp_path, "2")
+
+
+def test_resolve_rejects_an_unknown_prefix(tmp_path):
+    touch(tmp_path, "a.jpg")
+    journal.save(tmp_path, plan_sort(tmp_path))
+
+    with pytest.raises(FileNotFoundError):
+        journal.resolve(tmp_path, "zzz")
+
+
+def test_undo_by_id_leaves_later_runs_alone(tmp_path):
+    touch(tmp_path, "a.jpg")
+    tidy(tmp_path)
+    first = journal.runs(tmp_path)[0]
+    touch(tmp_path, "b.pdf")
+    tidy(tmp_path)
+
+    journal.undo(tmp_path, first.id)
+
+    assert (tmp_path / "a.jpg").exists()
+    assert (tmp_path / "Documents" / "b.pdf").exists()
