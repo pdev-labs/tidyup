@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__, journal
-from .organizer import CATEGORY, DATE, Move, apply_moves, plan_sort
+from .organizer import CATEGORY, DATE, Move, TidyupError, apply_moves, plan_sort
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -91,6 +91,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         moves = plan_sort(args.directory, recursive=args.recursive, by=args.by)
     except NotADirectoryError as exc:
+        print(f"tidyup: {exc}", file=sys.stderr)
+        return 2
+    except TidyupError as exc:
         print(f"tidyup: {exc}", file=sys.stderr)
         return 2
 
