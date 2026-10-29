@@ -19,6 +19,9 @@ from .categories import FALLBACK, all_categories, category_for
 CATEGORY = "category"
 DATE = "date"
 
+#: Folder where tidyup keeps its own state (undo journals).
+STATE_DIRNAME = ".tidyup"
+
 _CATEGORY_DIR_NAMES = frozenset(all_categories())
 
 
@@ -83,6 +86,8 @@ def _iter_candidates(root: Path, recursive: bool, by: str) -> Iterable[Path]:
     entries = root.rglob("*") if recursive else root.iterdir()
     for entry in entries:
         if not entry.is_file() or entry.is_symlink() or _is_ignored(entry):
+            continue
+        if STATE_DIRNAME in entry.relative_to(root).parts[:-1]:
             continue
         # A recursive run must not re-sort files that already sit where this
         # tool would put them, otherwise a second run would chase its own tail.
