@@ -113,7 +113,7 @@ def test_move_str_is_readable(tmp_path):
         destination=tmp_path / "Images" / "a.jpg",
         root=tmp_path,
     )
-    assert "a.jpg -> Images/a.jpg" == str(move)
+    assert str(move) == "a.jpg -> Images/a.jpg"
 
 
 def test_unknown_grouping_mode_raises(tmp_path):
