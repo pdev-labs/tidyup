@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__, journal
+from .duplicates import find_duplicates, total_wasted
 from .organizer import CATEGORY, DATE, Move, TidyupError, apply_moves, plan_sort
 
 
@@ -66,6 +67,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="print the plan or the restore as JSON",
     )
     parser.add_argument(
+        "--duplicates",
+        action="store_true",
+        help="report files with identical contents instead of sorting",
+    )
+    parser.add_argument(
         "--undo",
         action="store_true",
         help="reverse the most recent run in the folder",
@@ -103,6 +109,55 @@ def _report(args: argparse.Namespace, verb: str, moves: Sequence[Move]) -> None:
         print(f"  {move}")
 
 
+def _human_size(count: int) -> str:
+    value = float(count)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024:
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} TB"
+
+
+def _run_duplicates(args: argparse.Namespace) -> int:
+    try:
+        groups = find_duplicates(args.directory, exclude=args.exclude)
+    except NotADirectoryError as exc:
+        print(f"tidyup: {exc}", file=sys.stderr)
+        return 2
+
+    if args.as_json:
+        print(
+            json.dumps(
+                {
+                    "root": str(args.directory.resolve()),
+                    "groups": [
+                        {
+                            "size": group.size,
+                            "digest": group.digest,
+                            "wasted": group.wasted_bytes,
+                            "paths": [_relative(path, args.directory) for path in group.paths],
+                        }
+                        for group in groups
+                    ],
+                    "wasted": total_wasted(groups),
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    if not groups:
+        print("No duplicate files found.")
+        return 0
+
+    for group in groups:
+        print(f"{_human_size(group.size)} each, {len(group.paths)} copies:")
+        for path in group.paths:
+            print(f"  {path.relative_to(args.directory)}")
+    print(f"Total reclaimable: {_human_size(total_wasted(groups))}")
+    return 0
+
+
 def _run_undo(args: argparse.Namespace) -> int:
     try:
         moves = journal.plan_undo(args.directory)
@@ -119,6 +174,9 @@ def _run_undo(args: argparse.Namespace) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
     args = build_parser().parse_args(argv)
+
+    if args.duplicates:
+        return _run_duplicates(args)
 
     if args.undo:
         return _run_undo(args)

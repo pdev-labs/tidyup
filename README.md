@@ -36,7 +36,21 @@ Then drop `--dry-run` to do it for real.
 $ tidyup ~/Downloads --by date      # 2026/10/ instead of category folders
 $ tidyup ~/Downloads -r             # include subfolders
 $ tidyup ~/Downloads -x "*.part"    # leave matching files where they are
+$ tidyup ~/Downloads --json         # machine-readable plan
 ```
+
+## Duplicates
+
+```console
+$ tidyup ~/Downloads --duplicates
+1.2 MB each, 2 copies:
+  holiday.mp4
+  old/holiday-copy.mp4
+Total reclaimable: 1.2 MB
+```
+
+Files are bucketed by size first, so only plausible matches are hashed. Use
+`--duplicates --json` for scripting. This mode never moves anything.
 
 ## Undo
 
