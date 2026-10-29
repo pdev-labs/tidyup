@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -144,3 +145,48 @@ def test_exclude_flag_is_repeatable(tmp_path, capsys):
     assert (tmp_path / "Images" / "a.jpg").exists()
     assert (tmp_path / "b.log").exists()
     assert (tmp_path / "c.bak").exists()
+
+
+def test_json_dry_run_is_machine_readable(tmp_path, capsys):
+    touch(tmp_path, "a.jpg", "b.pdf")
+
+    assert main([str(tmp_path), "--dry-run", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["dry_run"] is True
+    assert payload["count"] == 2
+    assert payload["moves"] == [
+        {"source": "a.jpg", "destination": "Images/a.jpg"},
+        {"source": "b.pdf", "destination": "Documents/b.pdf"},
+    ]
+    assert (tmp_path / "a.jpg").exists()
+
+
+def test_json_real_run_marks_dry_run_false(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+
+    assert main([str(tmp_path), "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["dry_run"] is False
+    assert (tmp_path / "Images" / "a.jpg").exists()
+
+
+def test_json_on_a_sorted_folder_is_an_empty_plan(tmp_path, capsys):
+    assert main([str(tmp_path), "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["count"] == 0
+    assert payload["moves"] == []
+
+
+def test_json_undo_is_machine_readable(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+    main([str(tmp_path)])
+    capsys.readouterr()
+
+    assert main([str(tmp_path), "--undo", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["moves"] == [{"source": "Images/a.jpg", "destination": "a.jpg"}]
+    assert (tmp_path / "a.jpg").exists()
