@@ -166,3 +166,36 @@ def test_target_folder_conflict_is_detected_before_anything_moves(tmp_path):
 
     assert (tmp_path / "a.jpg").exists()
     assert (tmp_path / "b.pdf").exists()
+
+
+def test_exclude_matches_file_names(tmp_path):
+    touch(tmp_path, "a.jpg", "debug.log")
+
+    moves = plan_sort(tmp_path, exclude=["*.log"])
+
+    assert [m.source.name for m in moves] == ["a.jpg"]
+
+
+def test_exclude_matches_relative_paths(tmp_path):
+    package = tmp_path / "project" / "node_modules"
+    package.mkdir(parents=True)
+    (package / "lib.js").write_text("x", encoding="utf-8")
+    (tmp_path / "project" / "app.js").write_text("x", encoding="utf-8")
+
+    moves = plan_sort(tmp_path, recursive=True, exclude=["*/node_modules/*"])
+
+    assert [m.source.name for m in moves] == ["app.js"]
+
+
+def test_exclude_accepts_several_patterns(tmp_path):
+    touch(tmp_path, "a.jpg", "b.log", "c.tmp2", "d.pdf")
+
+    moves = plan_sort(tmp_path, exclude=["*.log", "*.tmp2"])
+
+    assert sorted(m.source.name for m in moves) == ["a.jpg", "d.pdf"]
+
+
+def test_exclude_does_not_hide_unmatched_files(tmp_path):
+    touch(tmp_path, "a.jpg")
+
+    assert len(plan_sort(tmp_path, exclude=["*.pdf"])) == 1

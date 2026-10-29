@@ -50,6 +50,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="group by file type (default) or by modification date",
     )
     parser.add_argument(
+        "-x",
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help="skip files matching GLOB, relative to the folder (repeatable)",
+    )
+    parser.add_argument(
         "--undo",
         action="store_true",
         help="reverse the most recent run in the folder",
@@ -89,7 +97,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_undo(args)
 
     try:
-        moves = plan_sort(args.directory, recursive=args.recursive, by=args.by)
+        moves = plan_sort(
+            args.directory, recursive=args.recursive, by=args.by, exclude=args.exclude
+        )
     except NotADirectoryError as exc:
         print(f"tidyup: {exc}", file=sys.stderr)
         return 2

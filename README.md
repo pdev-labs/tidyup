@@ -35,6 +35,7 @@ Then drop `--dry-run` to do it for real.
 ```console
 $ tidyup ~/Downloads --by date      # 2026/10/ instead of category folders
 $ tidyup ~/Downloads -r             # include subfolders
+$ tidyup ~/Downloads -x "*.part"    # leave matching files where they are
 ```
 
 ## Undo
