@@ -190,3 +190,45 @@ def test_json_undo_is_machine_readable(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["moves"] == [{"source": "Images/a.jpg", "destination": "a.jpg"}]
     assert (tmp_path / "a.jpg").exists()
+
+
+def test_duplicates_reports_groups(tmp_path, capsys):
+    (tmp_path / "a.txt").write_text("same", encoding="utf-8")
+    (tmp_path / "b.txt").write_text("same", encoding="utf-8")
+
+    assert main([str(tmp_path), "--duplicates"]) == 0
+
+    out = capsys.readouterr().out
+    assert "4 B each, 2 copies:" in out
+    assert "a.txt" in out
+    assert "Total reclaimable: 4 B" in out
+    assert (tmp_path / "a.txt").exists()
+
+
+def test_duplicates_json_payload(tmp_path, capsys):
+    (tmp_path / "a.txt").write_text("same", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "b.txt").write_text("same", encoding="utf-8")
+
+    assert main([str(tmp_path), "--duplicates", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["wasted"] == 4
+    assert payload["groups"][0]["paths"] == ["a.txt", "sub/b.txt"]
+
+
+def test_duplicates_with_none_found(tmp_path, capsys):
+    touch(tmp_path, "a.txt")
+
+    assert main([str(tmp_path), "--duplicates"]) == 0
+    assert "No duplicate files found." in capsys.readouterr().out
+
+
+def test_duplicates_does_not_resort_or_write_a_journal(tmp_path):
+    (tmp_path / "a.txt").write_text("same", encoding="utf-8")
+    (tmp_path / "b.txt").write_text("same", encoding="utf-8")
+
+    main([str(tmp_path), "--duplicates"])
+
+    assert (tmp_path / "a.txt").exists()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.txt", "b.txt"]

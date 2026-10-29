@@ -111,8 +111,12 @@ def _excluded(path: Path, root: Path, patterns: Sequence[str]) -> bool:
     )
 
 
-def _iter_candidates(
-    root: Path, recursive: bool, by: str, exclude: Sequence[str]
+def iter_files(
+    root: Path,
+    *,
+    recursive: bool = False,
+    by: str = CATEGORY,
+    exclude: Sequence[str] = (),
 ) -> Iterable[Path]:
     entries = root.rglob("*") if recursive else root.iterdir()
     for entry in entries:
@@ -160,7 +164,8 @@ def plan_sort(
     planned: set[Path] = set()
 
     for path in sorted(
-        _iter_candidates(root, recursive, by, exclude), key=lambda p: p.name.lower()
+        iter_files(root, recursive=recursive, by=by, exclude=exclude),
+        key=lambda p: p.name.lower(),
     ):
         target_dir = _destination_dir(path, root, by)
         _check_target_dir(target_dir)
@@ -186,6 +191,7 @@ __all__ = [
     "Move",
     "TidyupError",
     "apply_moves",
+    "iter_files",
     "plan_sort",
     "FALLBACK",
 ]
