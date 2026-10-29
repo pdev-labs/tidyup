@@ -117,9 +117,7 @@ def plan_sort(root: Path, *, recursive: bool = False, by: str = CATEGORY) -> lis
     planned: set[Path] = set()
 
     for path in sorted(_iter_candidates(root, recursive, by), key=lambda p: p.name.lower()):
-        destination = _unique_destination(
-            _destination_dir(path, root, by) / path.name, planned
-        )
+        destination = _unique_destination(_destination_dir(path, root, by) / path.name, planned)
         planned.add(destination)
         if destination == path:
             continue

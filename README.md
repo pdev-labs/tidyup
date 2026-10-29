@@ -1,5 +1,7 @@
 # tidyup
 
+[![CI](https://github.com/pdev-labs/tidyup/actions/workflows/ci.yml/badge.svg)](https://github.com/pdev-labs/tidyup/actions/workflows/ci.yml)
+
 A small, safe file organizer for folders that have gotten out of hand.
 
 `tidyup` sorts files into subfolders by type, previews every move before

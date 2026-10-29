@@ -20,8 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tidyup",
         description=(
-            "Sort a messy folder into tidy subfolders. "
-            "Always preview with --dry-run first."
+            "Sort a messy folder into tidy subfolders. Always preview with --dry-run first."
         ),
     )
     parser.add_argument(
