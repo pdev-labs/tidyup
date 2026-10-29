@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,16 @@ from .organizer import STATE_DIRNAME, Move, _unique_destination, apply_moves
 
 JOURNAL_DIRNAME = STATE_DIRNAME
 JOURNAL_FORMAT = 1
+
+
+@dataclass(frozen=True)
+class Run:
+    """One recorded tidy-up run."""
+
+    id: str
+    path: Path
+    created: str
+    move_count: int
 
 
 def journal_dir(root: Path) -> Path:
@@ -63,6 +74,47 @@ def latest(root: Path) -> Path | None:
     return journals[-1] if journals else None
 
 
+def runs(root: Path) -> list[Run]:
+    """Return every recorded run for ``root``, oldest first."""
+    directory = journal_dir(root)
+    if not directory.is_dir():
+        return []
+
+    recorded: list[Run] = []
+    for path in sorted(directory.glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        recorded.append(
+            Run(
+                id=path.stem,
+                path=path,
+                created=str(data.get("created", "")),
+                move_count=len(data.get("moves", [])),
+            )
+        )
+    return recorded
+
+
+def resolve(root: Path, run_id: str | None = None) -> Path:
+    """Find a journal by id prefix, or the newest one when ``run_id`` is None.
+
+    Raises:
+        FileNotFoundError: when nothing matches.
+        ValueError: when a prefix matches more than one run.
+    """
+    if run_id is None:
+        path = latest(root)
+        if path is None:
+            raise FileNotFoundError(f"no tidyup journal found in {journal_dir(root)}")
+        return path
+
+    matches = sorted(p for p in journal_dir(root).glob("*.json") if p.stem.startswith(run_id))
+    if not matches:
+        raise FileNotFoundError(f"no tidyup journal matching {run_id!r}")
+    if len(matches) > 1:
+        raise ValueError(f"journal prefix {run_id!r} matches {len(matches)} runs; be more specific")
+    return matches[0]
+
+
 def load(path: Path) -> list[dict[str, str]]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("format") != JOURNAL_FORMAT:
@@ -70,15 +122,17 @@ def load(path: Path) -> list[dict[str, str]]:
     return data["moves"]
 
 
-def plan_undo(root: Path) -> list[Move]:
-    """Return the moves that would reverse the most recent run.
+def plan_undo(root: Path, run_id: str | None = None) -> list[Move]:
+    """Return the moves that would reverse a recorded run.
+
+    By default the most recent run is reversed; ``run_id`` selects an older one
+    by id prefix.
 
     Raises:
-        FileNotFoundError: when there is no journal to undo.
+        FileNotFoundError: when there is no matching journal.
+        ValueError: when ``run_id`` is ambiguous.
     """
-    path = latest(root)
-    if path is None:
-        raise FileNotFoundError(f"no tidyup journal found in {journal_dir(root)}")
+    path = resolve(root, run_id)
 
     reversed_moves: list[Move] = []
     planned: set[Path] = set()
@@ -90,9 +144,9 @@ def plan_undo(root: Path) -> list[Move]:
     return reversed_moves
 
 
-def undo(root: Path) -> list[Move]:
-    """Apply the most recent journal to ``root`` and return what was restored."""
-    moves = plan_undo(root)
+def undo(root: Path, run_id: str | None = None) -> list[Move]:
+    """Apply a journal to ``root`` and return what was restored."""
+    moves = plan_undo(root, run_id)
     apply_moves([m for m in moves if m.source.exists()])
     _prune_empty_dirs(root, moves)
     return moves

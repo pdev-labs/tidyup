@@ -232,3 +232,60 @@ def test_duplicates_does_not_resort_or_write_a_journal(tmp_path):
 
     assert (tmp_path / "a.txt").exists()
     assert sorted(p.name for p in tmp_path.iterdir()) == ["a.txt", "b.txt"]
+
+
+def test_history_lists_runs_newest_first(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+    main([str(tmp_path)])
+    touch(tmp_path, "b.pdf")
+    main([str(tmp_path)])
+    capsys.readouterr()
+
+    assert main([str(tmp_path), "--history"]) == 0
+
+    lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+    assert len(lines) == 2
+    assert "1 file(s)" in lines[0]
+
+
+def test_history_is_available_as_json(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+    main([str(tmp_path)])
+    capsys.readouterr()
+
+    assert main([str(tmp_path), "--history", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload["runs"]) == 1
+    assert payload["runs"][0]["moves"] == 1
+
+
+def test_history_with_no_runs(tmp_path, capsys):
+    assert main([str(tmp_path), "--history"]) == 0
+    assert "No recorded runs" in capsys.readouterr().out
+
+
+def test_undo_id_restores_an_older_run(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+    main([str(tmp_path)])
+    touch(tmp_path, "b.pdf")
+    main([str(tmp_path)])
+    capsys.readouterr()
+
+    main([str(tmp_path), "--history", "--json"])
+    runs = json.loads(capsys.readouterr().out)["runs"]
+
+    assert main([str(tmp_path), "--undo-id", runs[1]["id"]]) == 0
+    assert (tmp_path / "a.jpg").exists()
+    assert (tmp_path / "Documents" / "b.pdf").exists()
+
+
+def test_ambiguous_undo_id_is_reported(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+    main([str(tmp_path)])
+    touch(tmp_path, "b.pdf")
+    main([str(tmp_path)])
+    capsys.readouterr()
+
+    assert main([str(tmp_path), "--undo-id", "2"]) == 2
+    assert "more specific" in capsys.readouterr().err
