@@ -375,3 +375,29 @@ def test_min_age_skips_files_touched_recently(tmp_path, capsys):
     assert "Moved 1 file(s)" in capsys.readouterr().out
     assert (tmp_path / "Images" / "settled.jpg").exists()
     assert (tmp_path / "in-progress.jpg").exists()
+
+
+def test_check_exits_one_when_work_is_pending(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+
+    assert main([str(tmp_path), "--check"]) == 1
+
+    assert "Would move 1 file(s)" in capsys.readouterr().out
+    assert (tmp_path / "a.jpg").exists()
+    assert not (tmp_path / ".tidyup").exists()
+
+
+def test_check_exits_zero_on_a_sorted_folder(tmp_path, capsys):
+    assert main([str(tmp_path), "--check"]) == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_check_json_reports_the_pending_plan(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+
+    assert main([str(tmp_path), "--check", "--json"]) == 1
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["count"] == 1
+    assert payload["dry_run"] is False
+    assert (tmp_path / "a.jpg").exists()

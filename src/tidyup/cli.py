@@ -106,6 +106,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="rename a clashing file (default) or skip it",
     )
     parser.add_argument(
+        "--check",
+        action="store_true",
+        help="exit 1 if anything would be moved, without moving anything",
+    )
+    parser.add_argument(
         "--prune-empty",
         action="store_true",
         help="remove folders left empty after sorting",
@@ -292,6 +297,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     moves = list(result.moves)
     skipped = list(result.skipped)
+
+    if args.check:
+        if moves:
+            _report(args, "Would move", moves, skipped=skipped)
+            return 1
+        if args.as_json:
+            print(json.dumps(_payload(args, []), indent=2))
+        return 0
+
     pruned: list[Path] = []
     if not args.dry_run:
         if moves:

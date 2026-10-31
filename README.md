@@ -43,6 +43,15 @@ $ tidyup ~/Downloads --on-collision skip  # leave clashing files alone
 $ tidyup ~/Downloads --min-age 7    # skip anything touched in the last week
 ```
 
+## In a cron job
+
+`--check` exits 1 when something would move and 0 when the folder is already
+sorted, without touching anything, so a scheduled run can alert instead of act:
+
+```console
+$ tidyup ~/Downloads --check --min-age 7 || echo "Downloads needs tidying"
+```
+
 ## Duplicates
 
 ```console
