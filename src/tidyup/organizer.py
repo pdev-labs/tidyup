@@ -19,6 +19,10 @@ from .categories import FALLBACK, all_categories, category_for
 
 CATEGORY = "category"
 DATE = "date"
+EXTENSION = "extension"
+
+#: Folder name used for files without a suffix when grouping by extension.
+NO_EXTENSION = "no-extension"
 
 #: Folder where tidyup keeps its own state (undo journals).
 STATE_DIRNAME = ".tidyup"
@@ -65,10 +69,16 @@ def _unique_destination(destination: Path, planned: set[Path]) -> Path:
         counter += 1
 
 
+def _extension_of(path: Path) -> str:
+    return path.suffix.lower().lstrip(".") or NO_EXTENSION
+
+
 def _destination_dir(path: Path, root: Path, by: str) -> Path:
     if by == DATE:
         stamp = datetime.fromtimestamp(path.stat().st_mtime)
         return root / f"{stamp:%Y}" / f"{stamp:%m}"
+    if by == EXTENSION:
+        return root / _extension_of(path)
     return root / category_for(path)
 
 
@@ -92,6 +102,8 @@ def _already_sorted(path: Path, root: Path, by: str) -> bool:
             and parent.parent.name.isdigit()
             and len(parent.parent.name) == 4
         )
+    if by == EXTENSION:
+        return parent.name == _extension_of(path)
     return parent.name in _CATEGORY_DIR_NAMES
 
 
@@ -144,8 +156,10 @@ def plan_sort(
 
     With ``by="category"`` files go to ``root/<Category>/<name>``. With
     ``by="date"`` they go to ``root/<YYYY>/<MM>/<name>`` using modification
-    time. Existing files are never overwritten: a clash produces
-    ``name (1).ext`` instead.
+    time. With ``by="extension"`` they go to ``root/<ext>/<name>``.
+
+    Existing files are never overwritten: a clash produces ``name (1).ext``
+    instead.
 
     ``exclude`` holds shell globs matched against the path relative to
     ``root`` and against the bare file name; matching files are left in place.
@@ -155,7 +169,7 @@ def plan_sort(
         TidyupError: if a target folder name is taken by an existing file.
         ValueError: if ``by`` is not a known grouping mode.
     """
-    if by not in (CATEGORY, DATE):
+    if by not in (CATEGORY, DATE, EXTENSION):
         raise ValueError(f"unknown grouping mode: {by!r}")
     if not root.is_dir():
         raise NotADirectoryError(f"not a directory: {root}")
@@ -188,6 +202,8 @@ def apply_moves(moves: Sequence[Move]) -> None:
 __all__ = [
     "CATEGORY",
     "DATE",
+    "EXTENSION",
+    "NO_EXTENSION",
     "Move",
     "TidyupError",
     "apply_moves",

@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from tidyup.categories import CATEGORIES, all_categories, category_for
-from tidyup.organizer import DATE, Move, TidyupError, apply_moves, plan_sort
+from tidyup.organizer import DATE, EXTENSION, Move, TidyupError, apply_moves, plan_sort
 
 
 def touch(directory: Path, *names: str) -> None:
@@ -199,3 +199,22 @@ def test_exclude_does_not_hide_unmatched_files(tmp_path):
     touch(tmp_path, "a.jpg")
 
     assert len(plan_sort(tmp_path, exclude=["*.pdf"])) == 1
+
+
+def test_extension_mode_uses_suffix_folders(tmp_path):
+    touch(tmp_path, "a.JPG", "b.pdf", "LICENSE")
+
+    moves = plan_sort(tmp_path, by=EXTENSION)
+
+    mapping = {m.source.name: m.destination.parent.name for m in moves}
+    assert mapping == {"a.JPG": "jpg", "b.pdf": "pdf", "LICENSE": "no-extension"}
+
+
+def test_extension_mode_does_not_resort_its_own_folders(tmp_path):
+    (tmp_path / "jpg").mkdir()
+    (tmp_path / "jpg" / "old.jpg").write_text("x", encoding="utf-8")
+    (tmp_path / "new.jpg").write_text("x", encoding="utf-8")
+
+    moves = plan_sort(tmp_path, recursive=True, by=EXTENSION)
+
+    assert [m.source.name for m in moves] == ["new.jpg"]
