@@ -41,6 +41,7 @@ $ tidyup ~/Downloads --json         # machine-readable plan
 $ tidyup ~/Downloads --prune-empty  # remove folders the sort emptied
 $ tidyup ~/Downloads --on-collision skip  # leave clashing files alone
 $ tidyup ~/Downloads --min-age 7    # skip anything touched in the last week
+$ tidyup ~/Downloads --exclude-from .tidyupignore  # globs from a file
 ```
 
 ## In a cron job

@@ -401,3 +401,35 @@ def test_check_json_reports_the_pending_plan(tmp_path, capsys):
     assert payload["count"] == 1
     assert payload["dry_run"] is False
     assert (tmp_path / "a.jpg").exists()
+
+
+def test_exclude_from_file(tmp_path, capsys):
+    work = tmp_path / "work"
+    work.mkdir()
+    touch(work, "a.jpg", "b.log", "c.bak")
+    patterns = tmp_path / "ignore.txt"
+    patterns.write_text("# build artefacts\n*.log\n\n*.bak\n", encoding="utf-8")
+
+    assert main([str(work), "--exclude-from", str(patterns)]) == 0
+
+    assert "Moved 1 file(s)" in capsys.readouterr().out
+    assert (work / "b.log").exists()
+    assert (work / "c.bak").exists()
+    assert (work / "Images" / "a.jpg").exists()
+
+
+def test_exclude_from_combines_with_exclude_flags(tmp_path, capsys):
+    work = tmp_path / "work2"
+    work.mkdir()
+    touch(work, "a.jpg", "b.log", "c.bak")
+    patterns = tmp_path / "ignore2.txt"
+    patterns.write_text("*.log\n", encoding="utf-8")
+
+    assert main([str(work), "--exclude-from", str(patterns), "-x", "*.bak"]) == 0
+
+    assert "Moved 1 file(s)" in capsys.readouterr().out
+
+
+def test_missing_exclude_file_is_a_clean_error(tmp_path, capsys):
+    assert main([str(tmp_path), "--exclude-from", str(tmp_path / "nope")]) == 2
+    assert "no such exclude file" in capsys.readouterr().err
