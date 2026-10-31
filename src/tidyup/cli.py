@@ -15,10 +15,12 @@ from .organizer import (
     CATEGORY,
     DATE,
     EXTENSION,
+    RENAME,
+    SKIP,
     Move,
     TidyupError,
     apply_moves,
-    plan_sort,
+    plan,
     prune_empty_dirs,
 )
 
@@ -91,6 +93,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="reverse a specific recorded run (unique id prefix)",
     )
     parser.add_argument(
+        "--on-collision",
+        choices=(RENAME, SKIP),
+        default=RENAME,
+        help="rename a clashing file (default) or skip it",
+    )
+    parser.add_argument(
         "--prune-empty",
         action="store_true",
         help="remove folders left empty after sorting",
@@ -113,7 +121,10 @@ def _relative(path: Path, root: Path) -> str:
 
 
 def _payload(
-    args: argparse.Namespace, moves: Sequence[Move], pruned: Sequence[Path] = ()
+    args: argparse.Namespace,
+    moves: Sequence[Move],
+    pruned: Sequence[Path] = (),
+    skipped: Sequence[Path] = (),
 ) -> dict[str, Any]:
     return {
         "root": str(args.directory.resolve()),
@@ -123,6 +134,7 @@ def _payload(
             {"source": _relative(m.source, m.root), "destination": _relative(m.destination, m.root)}
             for m in moves
         ],
+        "skipped": [_relative(path, args.directory) for path in skipped],
         "pruned": [_relative(path, args.directory) for path in pruned],
     }
 
@@ -132,14 +144,17 @@ def _report(
     verb: str,
     moves: Sequence[Move],
     pruned: Sequence[Path] = (),
+    skipped: Sequence[Path] = (),
 ) -> None:
     if args.as_json:
-        print(json.dumps(_payload(args, moves, pruned), indent=2))
+        print(json.dumps(_payload(args, moves, pruned, skipped), indent=2))
         return
     if moves:
         print(f"{verb} {len(moves)} file(s) in {args.directory.resolve()}")
         for move in moves:
             print(f"  {move}")
+    if skipped:
+        print(f"Skipped {len(skipped)} file(s) whose name already exists.")
     if pruned:
         print(f"Removed {len(pruned)} empty folder(s).")
 
@@ -253,8 +268,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_undo(args)
 
     try:
-        moves = plan_sort(
-            args.directory, recursive=args.recursive, by=args.by, exclude=args.exclude
+        result = plan(
+            args.directory,
+            recursive=args.recursive,
+            by=args.by,
+            exclude=args.exclude,
+            on_collision=args.on_collision,
         )
     except NotADirectoryError as exc:
         print(f"tidyup: {exc}", file=sys.stderr)
@@ -263,6 +282,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"tidyup: {exc}", file=sys.stderr)
         return 2
 
+    moves = list(result.moves)
+    skipped = list(result.skipped)
     pruned: list[Path] = []
     if not args.dry_run:
         if moves:
@@ -271,14 +292,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.prune_empty:
             pruned = prune_empty_dirs(args.directory)
 
-    if not moves and not pruned:
+    if not moves and not pruned and not skipped:
         if args.as_json:
             print(json.dumps(_payload(args, []), indent=2))
         else:
             print("Nothing to tidy - the folder is already sorted.")
         return 0
 
-    _report(args, "Would move" if args.dry_run else "Moved", moves, pruned)
+    _report(args, "Would move" if args.dry_run else "Moved", moves, pruned, skipped)
 
     return 0
 

@@ -21,6 +21,9 @@ CATEGORY = "category"
 DATE = "date"
 EXTENSION = "extension"
 
+RENAME = "rename"
+SKIP = "skip"
+
 #: Folder name used for files without a suffix when grouping by extension.
 NO_EXTENSION = "no-extension"
 
@@ -145,21 +148,31 @@ def iter_files(
         yield entry
 
 
-def plan_sort(
+@dataclass(frozen=True)
+class Plan:
+    """The outcome of planning a sort."""
+
+    moves: tuple[Move, ...]
+    skipped: tuple[Path, ...] = ()
+
+
+def plan(
     root: Path,
     *,
     recursive: bool = False,
     by: str = CATEGORY,
     exclude: Sequence[str] = (),
-) -> list[Move]:
+    on_collision: str = RENAME,
+) -> Plan:
     """Return the moves needed to tidy ``root``, without touching anything.
 
     With ``by="category"`` files go to ``root/<Category>/<name>``. With
     ``by="date"`` they go to ``root/<YYYY>/<MM>/<name>`` using modification
     time. With ``by="extension"`` they go to ``root/<ext>/<name>``.
 
-    Existing files are never overwritten: a clash produces ``name (1).ext``
-    instead.
+    Existing files are never overwritten. With ``on_collision="rename"`` (the
+    default) a clash produces ``name (1).ext``; with ``"skip"`` the file is
+    left where it is and reported in :attr:`Plan.skipped`.
 
     ``exclude`` holds shell globs matched against the path relative to
     ``root`` and against the bare file name; matching files are left in place.
@@ -171,10 +184,13 @@ def plan_sort(
     """
     if by not in (CATEGORY, DATE, EXTENSION):
         raise ValueError(f"unknown grouping mode: {by!r}")
+    if on_collision not in (RENAME, SKIP):
+        raise ValueError(f"unknown collision policy: {on_collision!r}")
     if not root.is_dir():
         raise NotADirectoryError(f"not a directory: {root}")
 
     moves: list[Move] = []
+    skipped: list[Path] = []
     planned: set[Path] = set()
 
     for path in sorted(
@@ -183,13 +199,37 @@ def plan_sort(
     ):
         target_dir = _destination_dir(path, root, by)
         _check_target_dir(target_dir)
-        destination = _unique_destination(target_dir / path.name, planned)
+        target = target_dir / path.name
+        if on_collision == SKIP and (target in planned or target.exists()):
+            skipped.append(path)
+            continue
+        destination = _unique_destination(target, planned)
         planned.add(destination)
         if destination == path:
             continue
         moves.append(Move(source=path, destination=destination, root=root))
 
-    return moves
+    return Plan(moves=tuple(moves), skipped=tuple(skipped))
+
+
+def plan_sort(
+    root: Path,
+    *,
+    recursive: bool = False,
+    by: str = CATEGORY,
+    exclude: Sequence[str] = (),
+    on_collision: str = RENAME,
+) -> list[Move]:
+    """Return just the moves from :func:`plan`."""
+    return list(
+        plan(
+            root,
+            recursive=recursive,
+            by=by,
+            exclude=exclude,
+            on_collision=on_collision,
+        ).moves
+    )
 
 
 def prune_empty_dirs(root: Path) -> list[Path]:
@@ -226,10 +266,14 @@ __all__ = [
     "DATE",
     "EXTENSION",
     "NO_EXTENSION",
+    "Plan",
+    "RENAME",
+    "SKIP",
     "Move",
     "TidyupError",
     "apply_moves",
     "iter_files",
+    "plan",
     "plan_sort",
     "prune_empty_dirs",
     "FALLBACK",

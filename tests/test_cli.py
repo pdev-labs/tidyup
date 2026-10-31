@@ -337,3 +337,26 @@ def test_prune_empty_is_reported_in_json(tmp_path, capsys):
     assert main([str(tmp_path), "--prune-empty", "--json"]) == 0
 
     assert json.loads(capsys.readouterr().out)["pruned"] == ["old"]
+
+
+def test_on_collision_skip_reports_skipped_files(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+    (tmp_path / "Images").mkdir()
+    (tmp_path / "Images" / "a.jpg").write_text("keep", encoding="utf-8")
+
+    assert main([str(tmp_path), "--on-collision", "skip"]) == 0
+
+    out = capsys.readouterr().out
+    assert "Skipped 1 file(s) whose name already exists." in out
+    assert (tmp_path / "a.jpg").exists()
+    assert (tmp_path / "Images" / "a.jpg").read_text(encoding="utf-8") == "keep"
+
+
+def test_on_collision_skip_appears_in_json(tmp_path, capsys):
+    touch(tmp_path, "a.jpg")
+    (tmp_path / "Images").mkdir()
+    (tmp_path / "Images" / "a.jpg").write_text("keep", encoding="utf-8")
+
+    assert main([str(tmp_path), "--on-collision", "skip", "--json"]) == 0
+
+    assert json.loads(capsys.readouterr().out)["skipped"] == ["a.jpg"]
