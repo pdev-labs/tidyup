@@ -299,3 +299,41 @@ def test_by_extension_groups_by_suffix(tmp_path, capsys):
     assert "b.png -> png/b.png" in capsys.readouterr().out
     assert (tmp_path / "png" / "a.png").exists()
     assert (tmp_path / "pdf" / "c.pdf").exists()
+
+
+def test_prune_empty_removes_folders_emptied_by_a_sort(tmp_path, capsys):
+    (tmp_path / "old").mkdir()
+    touch(tmp_path, "a.jpg")
+
+    assert main([str(tmp_path), "--prune-empty"]) == 0
+
+    out = capsys.readouterr().out
+    assert "Removed 1 empty folder(s)." in out
+    assert not (tmp_path / "old").exists()
+    assert (tmp_path / "Images" / "a.jpg").exists()
+
+
+def test_prune_empty_works_when_there_is_nothing_to_sort(tmp_path, capsys):
+    (tmp_path / "empty" / "deeper").mkdir(parents=True)
+
+    assert main([str(tmp_path), "--prune-empty"]) == 0
+
+    assert not (tmp_path / "empty").exists()
+    assert "Removed 2 empty folder(s)." in capsys.readouterr().out
+
+
+def test_prune_empty_is_a_no_op_on_dry_run(tmp_path):
+    (tmp_path / "empty").mkdir()
+
+    main([str(tmp_path), "--prune-empty", "--dry-run"])
+
+    assert (tmp_path / "empty").exists()
+
+
+def test_prune_empty_is_reported_in_json(tmp_path, capsys):
+    (tmp_path / "old").mkdir()
+    touch(tmp_path, "a.jpg")
+
+    assert main([str(tmp_path), "--prune-empty", "--json"]) == 0
+
+    assert json.loads(capsys.readouterr().out)["pruned"] == ["old"]

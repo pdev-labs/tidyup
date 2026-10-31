@@ -11,7 +11,16 @@ from typing import Any
 
 from . import __version__, journal
 from .duplicates import find_duplicates, total_wasted
-from .organizer import CATEGORY, DATE, EXTENSION, Move, TidyupError, apply_moves, plan_sort
+from .organizer import (
+    CATEGORY,
+    DATE,
+    EXTENSION,
+    Move,
+    TidyupError,
+    apply_moves,
+    plan_sort,
+    prune_empty_dirs,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -82,6 +91,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="reverse a specific recorded run (unique id prefix)",
     )
     parser.add_argument(
+        "--prune-empty",
+        action="store_true",
+        help="remove folders left empty after sorting",
+    )
+    parser.add_argument(
         "--history",
         action="store_true",
         help="list recorded runs in the folder",
@@ -98,7 +112,9 @@ def _relative(path: Path, root: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
-def _payload(args: argparse.Namespace, moves: Sequence[Move]) -> dict[str, Any]:
+def _payload(
+    args: argparse.Namespace, moves: Sequence[Move], pruned: Sequence[Path] = ()
+) -> dict[str, Any]:
     return {
         "root": str(args.directory.resolve()),
         "dry_run": bool(args.dry_run),
@@ -107,16 +123,25 @@ def _payload(args: argparse.Namespace, moves: Sequence[Move]) -> dict[str, Any]:
             {"source": _relative(m.source, m.root), "destination": _relative(m.destination, m.root)}
             for m in moves
         ],
+        "pruned": [_relative(path, args.directory) for path in pruned],
     }
 
 
-def _report(args: argparse.Namespace, verb: str, moves: Sequence[Move]) -> None:
+def _report(
+    args: argparse.Namespace,
+    verb: str,
+    moves: Sequence[Move],
+    pruned: Sequence[Path] = (),
+) -> None:
     if args.as_json:
-        print(json.dumps(_payload(args, moves), indent=2))
+        print(json.dumps(_payload(args, moves, pruned), indent=2))
         return
-    print(f"{verb} {len(moves)} file(s) in {args.directory.resolve()}")
-    for move in moves:
-        print(f"  {move}")
+    if moves:
+        print(f"{verb} {len(moves)} file(s) in {args.directory.resolve()}")
+        for move in moves:
+            print(f"  {move}")
+    if pruned:
+        print(f"Removed {len(pruned)} empty folder(s).")
 
 
 def _human_size(count: int) -> str:
@@ -238,18 +263,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"tidyup: {exc}", file=sys.stderr)
         return 2
 
-    if not moves:
+    pruned: list[Path] = []
+    if not args.dry_run:
+        if moves:
+            journal.save(args.directory, moves)
+            apply_moves(moves)
+        if args.prune_empty:
+            pruned = prune_empty_dirs(args.directory)
+
+    if not moves and not pruned:
         if args.as_json:
             print(json.dumps(_payload(args, []), indent=2))
         else:
             print("Nothing to tidy - the folder is already sorted.")
         return 0
 
-    _report(args, "Would move" if args.dry_run else "Moved", moves)
-
-    if not args.dry_run:
-        journal.save(args.directory, moves)
-        apply_moves(moves)
+    _report(args, "Would move" if args.dry_run else "Moved", moves, pruned)
 
     return 0
 

@@ -3,7 +3,15 @@ from pathlib import Path
 import pytest
 
 from tidyup.categories import CATEGORIES, all_categories, category_for
-from tidyup.organizer import DATE, EXTENSION, Move, TidyupError, apply_moves, plan_sort
+from tidyup.organizer import (
+    DATE,
+    EXTENSION,
+    Move,
+    TidyupError,
+    apply_moves,
+    plan_sort,
+    prune_empty_dirs,
+)
 
 
 def touch(directory: Path, *names: str) -> None:
@@ -218,3 +226,22 @@ def test_extension_mode_does_not_resort_its_own_folders(tmp_path):
     moves = plan_sort(tmp_path, recursive=True, by=EXTENSION)
 
     assert [m.source.name for m in moves] == ["new.jpg"]
+
+
+def test_prune_empty_dirs_removes_nested_empties_deepest_first(tmp_path):
+    (tmp_path / "a" / "b").mkdir(parents=True)
+    (tmp_path / "keep").mkdir()
+    (tmp_path / "keep" / "f.txt").write_text("x", encoding="utf-8")
+
+    removed = prune_empty_dirs(tmp_path)
+
+    assert not (tmp_path / "a").exists()
+    assert (tmp_path / "keep").exists()
+    assert removed == [tmp_path / "a" / "b", tmp_path / "a"]
+
+
+def test_prune_empty_dirs_never_touches_state(tmp_path):
+    (tmp_path / ".tidyup" / "journal").mkdir(parents=True)
+
+    assert prune_empty_dirs(tmp_path) == []
+    assert (tmp_path / ".tidyup" / "journal").is_dir()

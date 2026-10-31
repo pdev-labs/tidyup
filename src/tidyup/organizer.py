@@ -192,6 +192,28 @@ def plan_sort(
     return moves
 
 
+def prune_empty_dirs(root: Path) -> list[Path]:
+    """Remove empty directories under ``root``, deepest first.
+
+    State folders (``.tidyup``) are never touched, and a directory that still
+    holds anything is left alone. Returns the directories that were removed.
+    """
+    if not root.is_dir():
+        return []
+
+    removed: list[Path] = []
+    directories = [p for p in root.rglob("*") if p.is_dir() and not p.is_symlink()]
+    for directory in sorted(directories, key=lambda p: len(p.parts), reverse=True):
+        if STATE_DIRNAME in directory.relative_to(root).parts:
+            continue
+        try:
+            directory.rmdir()
+        except OSError:
+            continue
+        removed.append(directory)
+    return removed
+
+
 def apply_moves(moves: Sequence[Move]) -> None:
     """Perform ``moves`` on disk, creating target folders as needed."""
     for move in moves:
@@ -209,5 +231,6 @@ __all__ = [
     "apply_moves",
     "iter_files",
     "plan_sort",
+    "prune_empty_dirs",
     "FALLBACK",
 ]

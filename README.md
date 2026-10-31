@@ -38,6 +38,7 @@ $ tidyup ~/Downloads --by extension  # one folder per suffix, e.g. png/
 $ tidyup ~/Downloads -r             # include subfolders
 $ tidyup ~/Downloads -x "*.part"    # leave matching files where they are
 $ tidyup ~/Downloads --json         # machine-readable plan
+$ tidyup ~/Downloads --prune-empty  # remove folders the sort emptied
 ```
 
 ## Duplicates
