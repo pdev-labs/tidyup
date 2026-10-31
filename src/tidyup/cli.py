@@ -93,6 +93,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="reverse a specific recorded run (unique id prefix)",
     )
     parser.add_argument(
+        "--min-age",
+        type=float,
+        default=0.0,
+        metavar="DAYS",
+        help="only sort files older than DAYS (default: all files)",
+    )
+    parser.add_argument(
         "--on-collision",
         choices=(RENAME, SKIP),
         default=RENAME,
@@ -274,6 +281,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             by=args.by,
             exclude=args.exclude,
             on_collision=args.on_collision,
+            min_age_days=args.min_age,
         )
     except NotADirectoryError as exc:
         print(f"tidyup: {exc}", file=sys.stderr)

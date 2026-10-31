@@ -360,3 +360,18 @@ def test_on_collision_skip_appears_in_json(tmp_path, capsys):
     assert main([str(tmp_path), "--on-collision", "skip", "--json"]) == 0
 
     assert json.loads(capsys.readouterr().out)["skipped"] == ["a.jpg"]
+
+
+def test_min_age_skips_files_touched_recently(tmp_path, capsys):
+    import os
+    import time
+
+    touch(tmp_path, "settled.jpg", "in-progress.jpg")
+    stamp = time.time() - 30 * 86_400
+    os.utime(tmp_path / "settled.jpg", (stamp, stamp))
+
+    assert main([str(tmp_path), "--min-age", "7"]) == 0
+
+    assert "Moved 1 file(s)" in capsys.readouterr().out
+    assert (tmp_path / "Images" / "settled.jpg").exists()
+    assert (tmp_path / "in-progress.jpg").exists()
