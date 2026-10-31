@@ -6,9 +6,11 @@ from tidyup.categories import CATEGORIES, all_categories, category_for
 from tidyup.organizer import (
     DATE,
     EXTENSION,
+    SKIP,
     Move,
     TidyupError,
     apply_moves,
+    plan,
     plan_sort,
     prune_empty_dirs,
 )
@@ -245,3 +247,42 @@ def test_prune_empty_dirs_never_touches_state(tmp_path):
 
     assert prune_empty_dirs(tmp_path) == []
     assert (tmp_path / ".tidyup" / "journal").is_dir()
+
+
+def test_skip_policy_leaves_clashing_files_in_place(tmp_path):
+    touch(tmp_path, "a.jpg")
+    (tmp_path / "Images").mkdir()
+    (tmp_path / "Images" / "a.jpg").write_text("keep", encoding="utf-8")
+
+    result = plan(tmp_path, on_collision=SKIP)
+
+    assert result.moves == ()
+    assert result.skipped == (tmp_path / "a.jpg",)
+    assert (tmp_path / "Images" / "a.jpg").read_text(encoding="utf-8") == "keep"
+
+
+def test_skip_policy_still_moves_uncontested_files(tmp_path):
+    touch(tmp_path, "a.jpg", "b.jpg")
+    (tmp_path / "Images").mkdir()
+    (tmp_path / "Images" / "a.jpg").write_text("keep", encoding="utf-8")
+
+    result = plan(tmp_path, on_collision=SKIP)
+
+    assert [m.source.name for m in result.moves] == ["b.jpg"]
+    assert [p.name for p in result.skipped] == ["a.jpg"]
+
+
+def test_rename_policy_remains_the_default(tmp_path):
+    touch(tmp_path, "a.jpg")
+    (tmp_path / "Images").mkdir()
+    (tmp_path / "Images" / "a.jpg").write_text("keep", encoding="utf-8")
+
+    result = plan(tmp_path)
+
+    assert result.skipped == ()
+    assert result.moves[0].destination.name == "a (1).jpg"
+
+
+def test_unknown_collision_policy_raises(tmp_path):
+    with pytest.raises(ValueError):
+        plan(tmp_path, on_collision="overwrite")
