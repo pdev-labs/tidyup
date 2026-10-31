@@ -433,3 +433,48 @@ def test_exclude_from_combines_with_exclude_flags(tmp_path, capsys):
 def test_missing_exclude_file_is_a_clean_error(tmp_path, capsys):
     assert main([str(tmp_path), "--exclude-from", str(tmp_path / "nope")]) == 2
     assert "no such exclude file" in capsys.readouterr().err
+
+
+def test_config_file_supplies_defaults(tmp_path, capsys):
+    (tmp_path / ".tidyup.toml").write_text('by = "extension"\n', encoding="utf-8")
+    touch(tmp_path, "a.png")
+
+    assert main([str(tmp_path)]) == 0
+
+    assert (tmp_path / "png" / "a.png").exists()
+
+
+def test_flags_override_the_config_file(tmp_path, capsys):
+    (tmp_path / ".tidyup.toml").write_text('by = "extension"\n', encoding="utf-8")
+    touch(tmp_path, "a.png")
+
+    assert main([str(tmp_path), "--by", "category"]) == 0
+
+    assert (tmp_path / "Images" / "a.png").exists()
+
+
+def test_config_excludes_are_combined_with_flags(tmp_path, capsys):
+    (tmp_path / ".tidyup.toml").write_text('exclude = ["*.log"]\n', encoding="utf-8")
+    touch(tmp_path, "a.jpg", "b.log", "c.bak")
+
+    assert main([str(tmp_path), "-x", "*.bak"]) == 0
+
+    assert "Moved 1 file(s)" in capsys.readouterr().out
+
+
+def test_config_can_request_pruning(tmp_path, capsys):
+    (tmp_path / ".tidyup.toml").write_text("prune_empty = true\n", encoding="utf-8")
+    (tmp_path / "empty").mkdir()
+    touch(tmp_path, "a.jpg")
+
+    assert main([str(tmp_path)]) == 0
+
+    assert "Removed 1 empty folder(s)." in capsys.readouterr().out
+    assert not (tmp_path / "empty").exists()
+
+
+def test_broken_config_is_a_clean_error(tmp_path, capsys):
+    (tmp_path / ".tidyup.toml").write_text('by = "size"\n', encoding="utf-8")
+
+    assert main([str(tmp_path)]) == 2
+    assert "by must be one of" in capsys.readouterr().err

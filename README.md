@@ -44,6 +44,22 @@ $ tidyup ~/Downloads --min-age 7    # skip anything touched in the last week
 $ tidyup ~/Downloads --exclude-from .tidyupignore  # globs from a file
 ```
 
+## Configuration
+
+Drop a `.tidyup.toml` in the folder to make flags the default:
+
+```toml
+by = "date"
+recursive = true
+exclude = ["*.part", "*.crdownload"]
+min_age = 3
+prune_empty = true
+```
+
+Flags on the command line always win, so a one-off run is never blocked by the
+file. Unknown keys and invalid values are reported by name instead of being
+ignored.
+
 ## In a cron job
 
 `--check` exits 1 when something would move and 0 when the folder is already

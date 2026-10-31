@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__, journal
+from .config import ConfigError
+from .config import load as load_config
 from .duplicates import find_duplicates, total_wasted
 from .organizer import (
     CATEGORY,
@@ -54,13 +56,14 @@ def build_parser() -> argparse.ArgumentParser:
         "-r",
         "--recursive",
         action="store_true",
+        default=None,
         help="also sort files inside subdirectories",
     )
     parser.add_argument(
         "-b",
         "--by",
         choices=(CATEGORY, DATE, EXTENSION),
-        default=CATEGORY,
+        default=None,
         help="group by category (default), modification date or extension",
     )
     parser.add_argument(
@@ -101,14 +104,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--min-age",
         type=float,
-        default=0.0,
+        default=None,
         metavar="DAYS",
         help="only sort files older than DAYS (default: all files)",
     )
     parser.add_argument(
         "--on-collision",
         choices=(RENAME, SKIP),
-        default=RENAME,
+        default=None,
         help="rename a clashing file (default) or skip it",
     )
     parser.add_argument(
@@ -119,6 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prune-empty",
         action="store_true",
+        default=None,
         help="remove folders left empty after sorting",
     )
     parser.add_argument(
@@ -284,6 +288,21 @@ def _run_history(args: argparse.Namespace) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
     args = build_parser().parse_args(argv)
+
+    try:
+        settings = load_config(args.directory)
+    except ConfigError as exc:
+        print(f"tidyup: {exc}", file=sys.stderr)
+        return 2
+
+    args.by = args.by or settings.by or CATEGORY
+    args.recursive = bool(args.recursive if args.recursive is not None else settings.recursive)
+    args.on_collision = args.on_collision or settings.on_collision or RENAME
+    args.min_age = args.min_age if args.min_age is not None else settings.min_age or 0.0
+    args.prune_empty = bool(
+        args.prune_empty if args.prune_empty is not None else settings.prune_empty
+    )
+    args.exclude = [*settings.exclude, *args.exclude]
 
     if args.exclude_from is not None:
         try:

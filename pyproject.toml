@@ -11,6 +11,9 @@ requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "pdev-labs" }]
 keywords = ["files", "organizer", "cli", "productivity", "cleanup"]
+dependencies = [
+    "tomli>=2.0; python_version < '3.11'",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
