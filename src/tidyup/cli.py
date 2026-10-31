@@ -11,7 +11,7 @@ from typing import Any
 
 from . import __version__, journal
 from .duplicates import find_duplicates, total_wasted
-from .organizer import CATEGORY, DATE, Move, TidyupError, apply_moves, plan_sort
+from .organizer import CATEGORY, DATE, EXTENSION, Move, TidyupError, apply_moves, plan_sort
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,9 +48,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-b",
         "--by",
-        choices=(CATEGORY, DATE),
+        choices=(CATEGORY, DATE, EXTENSION),
         default=CATEGORY,
-        help="group by file type (default) or by modification date",
+        help="group by category (default), modification date or extension",
     )
     parser.add_argument(
         "-x",

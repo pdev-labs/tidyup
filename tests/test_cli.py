@@ -289,3 +289,13 @@ def test_ambiguous_undo_id_is_reported(tmp_path, capsys):
 
     assert main([str(tmp_path), "--undo-id", "2"]) == 2
     assert "more specific" in capsys.readouterr().err
+
+
+def test_by_extension_groups_by_suffix(tmp_path, capsys):
+    touch(tmp_path, "a.png", "b.png", "c.pdf")
+
+    assert main([str(tmp_path), "--by", "extension"]) == 0
+
+    assert "b.png -> png/b.png" in capsys.readouterr().out
+    assert (tmp_path / "png" / "a.png").exists()
+    assert (tmp_path / "pdf" / "c.pdf").exists()
