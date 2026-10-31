@@ -72,6 +72,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="skip files matching GLOB, relative to the folder (repeatable)",
     )
     parser.add_argument(
+        "--exclude-from",
+        type=Path,
+        metavar="FILE",
+        help="read exclude globs from FILE, one per line (# comments allowed)",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         dest="as_json",
@@ -126,6 +132,18 @@ def build_parser() -> argparse.ArgumentParser:
         version=f"%(prog)s {__version__}",
     )
     return parser
+
+
+def _read_patterns(path: Path) -> list[str]:
+    """Read exclude globs from a file, one per line, skipping blanks and #."""
+    if not path.is_file():
+        raise FileNotFoundError(f"no such exclude file: {path}")
+    patterns: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            patterns.append(stripped)
+    return patterns
 
 
 def _relative(path: Path, root: Path) -> str:
@@ -266,6 +284,13 @@ def _run_history(args: argparse.Namespace) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
     args = build_parser().parse_args(argv)
+
+    if args.exclude_from is not None:
+        try:
+            args.exclude = [*args.exclude, *_read_patterns(args.exclude_from)]
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"tidyup: {exc}", file=sys.stderr)
+            return 2
 
     if args.history:
         return _run_history(args)
