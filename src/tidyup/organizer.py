@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import fnmatch
 import shutil
+import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -163,6 +164,7 @@ def plan(
     by: str = CATEGORY,
     exclude: Sequence[str] = (),
     on_collision: str = RENAME,
+    min_age_days: float = 0,
 ) -> Plan:
     """Return the moves needed to tidy ``root``, without touching anything.
 
@@ -176,6 +178,8 @@ def plan(
 
     ``exclude`` holds shell globs matched against the path relative to
     ``root`` and against the bare file name; matching files are left in place.
+    ``min_age_days`` skips files modified more recently than that, so a busy
+    download folder can be tidied without touching work in progress.
 
     Raises:
         NotADirectoryError: if ``root`` is not an existing directory.
@@ -186,17 +190,22 @@ def plan(
         raise ValueError(f"unknown grouping mode: {by!r}")
     if on_collision not in (RENAME, SKIP):
         raise ValueError(f"unknown collision policy: {on_collision!r}")
+    if min_age_days < 0:
+        raise ValueError("min_age_days cannot be negative")
     if not root.is_dir():
         raise NotADirectoryError(f"not a directory: {root}")
 
     moves: list[Move] = []
     skipped: list[Path] = []
     planned: set[Path] = set()
+    cutoff = time.time() - (min_age_days * 86_400) if min_age_days else None
 
     for path in sorted(
         iter_files(root, recursive=recursive, by=by, exclude=exclude),
         key=lambda p: p.name.lower(),
     ):
+        if cutoff is not None and path.stat().st_mtime > cutoff:
+            continue
         target_dir = _destination_dir(path, root, by)
         _check_target_dir(target_dir)
         target = target_dir / path.name
@@ -219,6 +228,7 @@ def plan_sort(
     by: str = CATEGORY,
     exclude: Sequence[str] = (),
     on_collision: str = RENAME,
+    min_age_days: float = 0,
 ) -> list[Move]:
     """Return just the moves from :func:`plan`."""
     return list(
@@ -228,6 +238,7 @@ def plan_sort(
             by=by,
             exclude=exclude,
             on_collision=on_collision,
+            min_age_days=min_age_days,
         ).moves
     )
 

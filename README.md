@@ -40,6 +40,7 @@ $ tidyup ~/Downloads -x "*.part"    # leave matching files where they are
 $ tidyup ~/Downloads --json         # machine-readable plan
 $ tidyup ~/Downloads --prune-empty  # remove folders the sort emptied
 $ tidyup ~/Downloads --on-collision skip  # leave clashing files alone
+$ tidyup ~/Downloads --min-age 7    # skip anything touched in the last week
 ```
 
 ## Duplicates

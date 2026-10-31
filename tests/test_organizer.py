@@ -286,3 +286,31 @@ def test_rename_policy_remains_the_default(tmp_path):
 def test_unknown_collision_policy_raises(tmp_path):
     with pytest.raises(ValueError):
         plan(tmp_path, on_collision="overwrite")
+
+
+def age(path, days):
+    import os
+    import time
+
+    stamp = time.time() - days * 86_400
+    os.utime(path, (stamp, stamp))
+
+
+def test_min_age_skips_recent_files(tmp_path):
+    touch(tmp_path, "old.jpg", "new.jpg")
+    age(tmp_path / "old.jpg", 10)
+
+    moves = plan_sort(tmp_path, min_age_days=7)
+
+    assert [m.source.name for m in moves] == ["old.jpg"]
+
+
+def test_min_age_zero_sorts_everything(tmp_path):
+    touch(tmp_path, "new.jpg")
+
+    assert len(plan_sort(tmp_path, min_age_days=0)) == 1
+
+
+def test_negative_min_age_raises(tmp_path):
+    with pytest.raises(ValueError):
+        plan_sort(tmp_path, min_age_days=-1)
